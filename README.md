@@ -59,14 +59,23 @@ Aynı tabloda `tip` sütunu ile **Gelir**, **Gider** ve **Fatura** satırları b
 
 | Değişken | Açıklama |
 |----------|----------|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | İndirdiğiniz Service Account JSON’unun tam metni **veya** aynı JSON’un Base64 kodu (Vercel’de satır sonu sorunlarını önler). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service Account JSON’unun **tek satır** metni **veya** Base64 (`/ayarlar` → kopyala). **Vercel’de zorunlu** (aşağıya bakın). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_FILE` | **Yalnızca yerel:** `secrets/…json` yolu. **Vercel’de kullanmayın** (deploy’da dosya yok). |
 | `GOOGLE_SPREADSHEET_ID` | E-tablo URL’sindeki kimlik (`/d/<ID>/edit`). |
 | `SHEET_MEDIA_NAME` | İsteğe bağlı; varsayılan `Medya`. |
 | `SHEET_TASKS_NAME` | İsteğe bağlı; varsayılan `Görevler`. |
 | `SHEET_WORK_NAME` | İsteğe bağlı; varsayılan `İş`. |
 | `SHEET_FINANS_NAME` | İsteğe bağlı; varsayılan `Finans`. |
 
-**Vercel:** Project → Settings → Environment Variables ile aynı isimleri Production (ve gerekiyorsa Preview) için ekleyin.
+### Vercel deploy
+
+1. Repo’yu GitHub/GitLab/Bitbucket ile bağlayın veya `vercel` CLI ile import edin; framework **Next.js** otomatik seçilir.
+2. **Settings → Environment Variables** (Production ve istenirse Preview / Development):
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` — **mutlaka** doldurun: `/ayarlar` sayfasındaki **«Yalnızca Base64 env satırını kopyala»** çıktısını yapıştırın (veya JSON’u tek satıra indirip yapıştırın).
+   - `GOOGLE_SPREADSHEET_ID` ve isteğe bağlı `SHEET_*` değişkenleri.
+   - `GOOGLE_SERVICE_ACCOUNT_JSON_FILE` **tanımlamayın** veya boş bırakın (Vercel’de dosya yolu çalışmaz).
+3. Değişken ekledikten veya güncelledikten sonra **Deployments → … → Redeploy** ile yeniden derleyin.
+4. Node sürümü: proje `package.json` içinde `engines.node` ile **≥ 20.9** bekler (Vercel varsayılanı genelde uygundur).
 
 ## Geliştirme
 
@@ -98,4 +107,3 @@ npm start
 | `GET` | `/api/settings` | Yerel özet: `hasSpreadsheetId`, `hasServiceAccountJson`, efektif `sheet*` adları (gizli değer yok). |
 
 Silme ve güncelleme, Sheet’teki **gerçek satır numarasına** dayanır; satırlar arası ekleme yapıldıysa yenileme sonrası güncel numarayı kullanın.
-# dgk
