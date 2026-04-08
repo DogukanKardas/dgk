@@ -7,6 +7,11 @@ function loadRawServiceAccountString(): string {
   const fileEnv = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_FILE?.trim();
   const inline = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
 
+  // Önce satır içi değer (Vercel’de FILE yanlışlıkla da tanımlı olsa bile JSON kullanılsın).
+  if (inline) {
+    return inline;
+  }
+
   if (fileEnv && process.env.VERCEL) {
     throw new Error(
       "Vercel ortamında GOOGLE_SERVICE_ACCOUNT_JSON_FILE kullanılamaz (build çıktısında dosya yok). Project → Settings → Environment Variables içinde GOOGLE_SERVICE_ACCOUNT_JSON ekleyin: Ayarlar sayfasındaki «Yalnızca Base64 env satırını kopyala» veya tek satıra indirgenmiş JSON."
@@ -28,10 +33,6 @@ function loadRawServiceAccountString(): string {
       );
     }
     return fs.readFileSync(resolved, "utf8").trim();
-  }
-
-  if (inline) {
-    return inline;
   }
 
   throw new Error(
