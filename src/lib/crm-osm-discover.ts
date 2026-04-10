@@ -1,5 +1,8 @@
 import { isPointInGeoBBox, normalizeBBoxGeography } from "@/lib/crm-geo";
-import { getNominatimApiUrl, getOverpassApiUrl } from "@/lib/env-sheets";
+import {
+  getNominatimApiUrl,
+  getOverpassApiUrlCandidates,
+} from "@/lib/env-sheets";
 
 export type BBox = {
   south: number;
@@ -131,75 +134,97 @@ export async function overpassBusinessesInBBox(
 );
 out center tags;
 `;
-  const overpassUrl = getOverpassApiUrl();
   const body = `data=${encodeURIComponent(q)}`;
+  const candidates = getOverpassApiUrlCandidates();
+  const fetchHeaders = {
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "User-Agent": UA,
+  };
 
-  const postOnce = () =>
-    fetch(overpassUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "User-Agent": UA,
-      },
-      body,
-      signal: AbortSignal.timeout(110_000),
-    });
+  const retryableStatus = (s: number) =>
+    s === 502 || s === 503 || s === 504 || s === 429;
 
-  let res = await postOnce();
-  if (res.status === 504 || res.status === 502) {
-    await sleep(3000);
-    res = await postOnce();
-  }
+  let lastFailure = "";
 
-  if (!res.ok) {
-    if (res.status === 504 || res.status === 502) {
-      throw new Error(
-        "Overpass zaman aşımı veya ağ geçidi hatası (sunucu yoğun). Birkaç dakika sonra tekrar deneyin; gerekirse OVERPASS_API_URL ile başka bir örnek deneyin."
-      );
+  for (const overpassUrl of candidates) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(overpassUrl, {
+          method: "POST",
+          headers: fetchHeaders,
+          body,
+          signal: AbortSignal.timeout(110_000),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { elements?: OsmElement[] };
+          const elements = json.elements ?? [];
+          const seen = new Set<string>();
+          const out: DiscoveredLead[] = [];
+
+          for (const el of elements) {
+            if (out.length >= maxResults) break;
+            if (el.type !== "node" && el.type !== "way") continue;
+            const pos = elementLatLon(el);
+            if (!pos) continue;
+            if (!isPointInGeoBBox(pos.lat, pos.lon, g)) continue;
+            const tags = el.tags ?? {};
+            const name =
+              tags.name ??
+              tags.brand ??
+              tags.operator ??
+              tags["name:tr"] ??
+              "";
+            if (!name.trim()) continue;
+            const osmKey = `${el.type}/${el.id}`;
+            if (seen.has(osmKey)) continue;
+            seen.add(osmKey);
+
+            const website =
+              tags.website ??
+              tags["contact:website"] ??
+              tags.url ??
+              "";
+            const phone = tags.phone ?? tags["contact:phone"] ?? "";
+
+            out.push({
+              osmKey,
+              ad: name.trim(),
+              adres: buildAddress(tags),
+              telefon: phone,
+              webSitesi: website,
+              webVarMi: website.trim() ? "evet" : "hayır",
+              kaynak: "osm_overpass",
+            });
+          }
+
+          return out;
+        }
+
+        lastFailure = `HTTP ${res.status}`;
+        if (retryableStatus(res.status) && attempt < 2) {
+          await sleep(2000 * (attempt + 1));
+          continue;
+        }
+        if (retryableStatus(res.status)) break;
+        throw new Error(`Overpass yanıtı: ${res.status}`);
+      } catch (e) {
+        const aborted =
+          e instanceof Error &&
+          (e.name === "AbortError" || e.name === "TimeoutError");
+        if (aborted) {
+          lastFailure = "zaman aşımı";
+          if (attempt < 2) {
+            await sleep(2000 * (attempt + 1));
+            continue;
+          }
+          break;
+        }
+        throw e;
+      }
     }
-    throw new Error(`Overpass yanıtı: ${res.status}`);
-  }
-  const json = (await res.json()) as { elements?: OsmElement[] };
-  const elements = json.elements ?? [];
-  const seen = new Set<string>();
-  const out: DiscoveredLead[] = [];
-
-  for (const el of elements) {
-    if (out.length >= maxResults) break;
-    if (el.type !== "node" && el.type !== "way") continue;
-    const pos = elementLatLon(el);
-    if (!pos) continue;
-    // Way’ler bbox’a sadece kenardan değebilir; merkez nokta kutunun dışında kalabiliyor.
-    if (!isPointInGeoBBox(pos.lat, pos.lon, g)) continue;
-    const tags = el.tags ?? {};
-    const name =
-      tags.name ??
-      tags.brand ??
-      tags.operator ??
-      tags["name:tr"] ??
-      "";
-    if (!name.trim()) continue;
-    const osmKey = `${el.type}/${el.id}`;
-    if (seen.has(osmKey)) continue;
-    seen.add(osmKey);
-
-    const website =
-      tags.website ??
-      tags["contact:website"] ??
-      tags.url ??
-      "";
-    const phone = tags.phone ?? tags["contact:phone"] ?? "";
-
-    out.push({
-      osmKey,
-      ad: name.trim(),
-      adres: buildAddress(tags),
-      telefon: phone,
-      webSitesi: website,
-      webVarMi: website.trim() ? "evet" : "hayır",
-      kaynak: "osm_overpass",
-    });
   }
 
-  return out;
+  throw new Error(
+    `Overpass zaman aşımı veya ağ geçidi hatası (sunucu yoğun). ${lastFailure ? `(${lastFailure}) ` : ""}Birkaç dakika sonra tekrar deneyin; birden fazla örnek için .env içinde OVERPASS_API_URL değerini virgülle ayırın (ör. örnek1,örnek2).`
+  );
 }

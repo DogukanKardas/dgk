@@ -223,6 +223,9 @@ export async function deleteCrmLead(sheetRow: number): Promise<void> {
   });
 }
 
+/** Tek batchUpdate = tek yazma kotası; satır başına ayrı çağrı dakikalık kotayı aşırır. */
+const DELETE_ROWS_BATCH_CHUNK = 100;
+
 async function deleteCrmSheetRows(
   sheetName: string,
   sheetRows: number[]
@@ -235,22 +238,21 @@ async function deleteCrmSheetRows(
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const { sheetId } = await resolveSheetByTitle(sheets, spreadsheetId, sheetName);
-  for (const sheetRow of unique) {
+  for (let i = 0; i < unique.length; i += DELETE_ROWS_BATCH_CHUNK) {
+    const chunk = unique.slice(i, i + DELETE_ROWS_BATCH_CHUNK);
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId,
-                dimension: "ROWS",
-                startIndex: sheetRow - 1,
-                endIndex: sheetRow,
-              },
+        requests: chunk.map((sheetRow) => ({
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: "ROWS",
+              startIndex: sheetRow - 1,
+              endIndex: sheetRow,
             },
           },
-        ],
+        })),
       },
     });
   }

@@ -61,12 +61,23 @@ const th =
 
 const td = "border-b border-zinc-800 px-2 py-2 align-top text-sm text-zinc-200";
 
+function leadHasWebsite(r: CrmLeadRowWithRow): boolean {
+  const flag = r.webVarMi.trim().toLowerCase();
+  if (flag.startsWith("evet")) return true;
+  const url = r.webSitesi.trim();
+  if (!url) return false;
+  return url.includes(".") || url.startsWith("http");
+}
+
 export function CrmLeadsPanel() {
   const [rows, setRows] = useState<CrmLeadRowWithRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [filterAsama, setFilterAsama] = useState("");
+  const [sortOrder, setSortOrder] = useState<"default" | "web_first">(
+    "default"
+  );
   const [adding, setAdding] = useState(false);
   const [newRow, setNewRow] = useState<LeadForm>(emptyForm());
   const [newCriteria, setNewCriteria] = useState<CriteriaState>({});
@@ -126,9 +137,19 @@ export function CrmLeadsPanel() {
     );
   }, [rows, filter, filterAsama]);
 
+  const displayRows = useMemo(() => {
+    if (sortOrder !== "web_first") return filtered;
+    return [...filtered].sort((a, b) => {
+      const wa = leadHasWebsite(a) ? 1 : 0;
+      const wb = leadHasWebsite(b) ? 1 : 0;
+      if (wa !== wb) return wb - wa;
+      return 0;
+    });
+  }, [filtered, sortOrder]);
+
   const filteredRowNums = useMemo(
-    () => filtered.map((r) => r.row),
-    [filtered]
+    () => displayRows.map((r) => r.row),
+    [displayRows]
   );
   const allFilteredSelected =
     filteredRowNums.length > 0 &&
@@ -312,6 +333,19 @@ export function CrmLeadsPanel() {
             ))}
           </select>
         </label>
+        <label className="block text-xs text-zinc-400">
+          Sıralama
+          <select
+            value={sortOrder}
+            onChange={(e) =>
+              setSortOrder(e.target.value as "default" | "web_first")
+            }
+            className="mt-1 block min-w-[11rem] rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
+          >
+            <option value="default">Sayfa sırası</option>
+            <option value="web_first">Önce web sitesi olanlar</option>
+          </select>
+        </label>
         <button
           type="button"
           onClick={() => void load()}
@@ -483,7 +517,7 @@ export function CrmLeadsPanel() {
                   type="checkbox"
                   checked={allFilteredSelected}
                   onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
-                  disabled={loading || filtered.length === 0}
+                  disabled={loading || displayRows.length === 0}
                   aria-label="Görünen satırların tümünü seç"
                 />
               </th>
@@ -503,14 +537,14 @@ export function CrmLeadsPanel() {
                   Yükleniyor…
                 </td>
               </tr>
-            ) : filtered.length === 0 ? (
+            ) : displayRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className={`${td} text-zinc-500`}>
                   Kayıt yok veya filtreye uymuyor.
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => (
+              displayRows.map((r) => (
                 <tr key={r.row}>
                   <td className={`${td} w-10`}>
                     <input

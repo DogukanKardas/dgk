@@ -45,11 +45,23 @@ export function getSheetCrmTemplatesName(): string {
   return parseSheetTabName(process.env.SHEET_CRM_TEMPLATES_NAME, "CRM_Sablonlar");
 }
 
+/** Genel örnekler yoğun olduğunda sırayla denenir; tek örnek istiyorsanız OVERPASS_API_URL ile tek URL verin. */
+const DEFAULT_OVERPASS_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+
+export function getOverpassApiUrlCandidates(): string[] {
+  const raw = process.env.OVERPASS_API_URL?.trim();
+  if (raw) {
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return [...DEFAULT_OVERPASS_URLS];
+}
+
 export function getOverpassApiUrl(): string {
-  return (
-    process.env.OVERPASS_API_URL?.trim() ||
-    "https://overpass-api.de/api/interpreter"
-  );
+  return getOverpassApiUrlCandidates()[0];
 }
 
 export function getNominatimApiUrl(): string {

@@ -9,6 +9,7 @@ import {
 } from "@/lib/crm-bbox-limits";
 import { normalizeBBoxGeography } from "@/lib/crm-geo";
 import type { BBox } from "@/lib/crm-osm-discover";
+import { filterAndDedupeDiscoveries } from "@/lib/crm-discover-display";
 import {
   clearSearchHistory,
   loadSearchHistory,
@@ -66,7 +67,9 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("İstanbul");
   const [freeQuery, setFreeQuery] = useState("");
-  const [leads, setLeads] = useState<Discovered[]>([]);
+  /** Overpass ham sonuç (filtre / adres tekilleştirmesi öncesi). */
+  const [discoverRaw, setDiscoverRaw] = useState<Discovered[]>([]);
+  const [excludeNameKeywords, setExcludeNameKeywords] = useState("");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +116,27 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
     setNorth(b.north.toFixed(5));
     setEast(b.east.toFixed(5));
   }, []);
+
+  const displayLeads = useMemo(
+    () => filterAndDedupeDiscoveries(discoverRaw, excludeNameKeywords),
+    [discoverRaw, excludeNameKeywords]
+  );
+
+  useEffect(() => {
+    if (discoverRaw.length === 0) return;
+    const visible = filterAndDedupeDiscoveries(discoverRaw, excludeNameKeywords);
+    setSelected((s) => {
+      let changed = false;
+      const next = { ...s };
+      for (const x of visible) {
+        if (next[x.osmKey] === undefined) {
+          next[x.osmKey] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : s;
+    });
+  }, [discoverRaw, excludeNameKeywords]);
 
   async function runDiscover() {
     setBusy(true);
@@ -177,12 +201,14 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
             : "Manuel bbox";
         setSearchHistory(pushSearchHistory(data.bbox, label));
       }
-      setLeads(list);
+      setDiscoverRaw(list);
+      const visible = filterAndDedupeDiscoveries(list, excludeNameKeywords);
       const sel: Record<string, boolean> = {};
-      for (const x of list) sel[x.osmKey] = true;
+      for (const x of visible) sel[x.osmKey] = true;
       setSelected(sel);
     } catch (err) {
-      setLeads([]);
+      setDiscoverRaw([]);
+      setSelected({});
       setError(err instanceof Error ? err.message : "Keşif başarısız");
     } finally {
       setBusy(false);
@@ -191,12 +217,12 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
 
   function toggleAll(on: boolean) {
     const sel: Record<string, boolean> = {};
-    for (const x of leads) sel[x.osmKey] = on;
+    for (const x of displayLeads) sel[x.osmKey] = on;
     setSelected(sel);
   }
 
   async function importSelected() {
-    const chosen = leads.filter((x) => selected[x.osmKey]);
+    const chosen = displayLeads.filter((x) => selected[x.osmKey]);
     if (chosen.length === 0) {
       setImportMsg("Seçili satır yok.");
       return;
@@ -337,7 +363,8 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
             </span>
             <span>
               <span className="inline-block h-2 w-2 rounded-sm bg-blue-500/90 align-middle" />{" "}
-              Keşif alanı (≤{String(CRM_MAX_BBOX_SPAN_DEG).replace(".", ",")}°)
+              Keşif alanı (≤{String(CRM_MAX_BBOX_SPAN_DEG).replace(".", ",")}°; bbox
+              modunda sürükleyerek taşınır)
             </span>
             {searchHistory.length > 0 ? (
               <button
@@ -357,6 +384,9 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
           onBoundsPicked={onBBoxPicked}
           pastRegions={searchHistory}
           currentBBox={bluePreviewBBox}
+          onCurrentBBoxCommit={
+            searchMode === "bbox" ? onBBoxPicked : undefined
+          }
         />
         {currentFormBBox && bboxExceedsMaxSpan(currentFormBBox) ? (
           <p className="text-xs text-amber-200/90">
@@ -433,6 +463,21 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
             />
           </label>
         </div>
+        <label className="block text-xs text-zinc-500">
+          Hariç tut — isimde geçenler (virgül veya satır ile)
+          <textarea
+            value={excludeNameKeywords}
+            onChange={(e) => setExcludeNameKeywords(e.target.value)}
+            placeholder="Örn. Starbucks, 7-Eleven, McDonald's, Circle K"
+            rows={2}
+            className="mt-1 w-full resize-y rounded border border-zinc-600 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600"
+          />
+          <span className="mt-1 block text-[11px] text-zinc-600">
+            Büyük/küçük harf duyarsız; isim alanında bu metinlerden biri geçen
+            kayıtlar listelenmez. Aynı normalize edilmiş adrese sahip kayıtlar
+            yalnızca bir kez gösterilir.
+          </span>
+        </label>
         <button
           type="button"
           disabled={busy}
@@ -452,11 +497,17 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
         <p className="text-sm text-emerald-300/90">{importMsg}</p>
       ) : null}
 
-      {leads.length > 0 ? (
+      {displayLeads.length > 0 ? (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-zinc-400">
-              {leads.length} sonuç
+              {displayLeads.length} sonuç
+              {discoverRaw.length !== displayLeads.length ? (
+                <span className="text-zinc-600">
+                  {" "}
+                  (ham: {discoverRaw.length})
+                </span>
+              ) : null}
             </span>
             <button
               type="button"
@@ -476,10 +527,12 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
               type="button"
               onClick={() => {
                 const drop = new Set(
-                  leads.filter((x) => selected[x.osmKey]).map((x) => x.osmKey)
+                  displayLeads
+                    .filter((x) => selected[x.osmKey])
+                    .map((x) => x.osmKey)
                 );
                 if (drop.size === 0) return;
-                setLeads((list) => list.filter((x) => !drop.has(x.osmKey)));
+                setDiscoverRaw((list) => list.filter((x) => !drop.has(x.osmKey)));
                 setSelected((s) => {
                   const next = { ...s };
                   for (const k of drop) delete next[k];
@@ -505,12 +558,14 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
                 <tr>
                   <th className="px-2 py-2"> </th>
                   <th className="px-2 py-2">Ad</th>
+                  <th className="w-[min(40%,22rem)] min-w-[10rem] px-2 py-2">
+                    Adres
+                  </th>
                   <th className="px-2 py-2">Web</th>
-                  <th className="px-2 py-2">Adres</th>
                 </tr>
               </thead>
               <tbody>
-                {leads.map((x) => (
+                {displayLeads.map((x) => (
                   <tr key={x.osmKey} className="border-t border-zinc-800">
                     <td className="px-2 py-2">
                       <input
@@ -525,11 +580,11 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
                       />
                     </td>
                     <td className="px-2 py-2 text-zinc-200">{x.ad}</td>
-                    <td className="px-2 py-2 text-xs text-zinc-500">
-                      {x.webVarMi}
+                    <td className="px-2 py-2 text-sm leading-snug text-zinc-300">
+                      {x.adres.trim() ? x.adres : "—"}
                     </td>
                     <td className="px-2 py-2 text-xs text-zinc-500">
-                      {x.adres}
+                      {x.webVarMi}
                     </td>
                   </tr>
                 ))}

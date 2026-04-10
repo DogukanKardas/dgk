@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { TurkeyClock } from "@/components/TurkeyClock";
+import { isAppAuthEnabled } from "@/lib/auth-session";
 
 const link =
   "rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white";
@@ -12,6 +14,8 @@ export function AppNav({
 }: {
   current: "medya" | "gorevler" | "is" | "finans" | "crm" | "ayarlar";
 }) {
+  const authOn = isAppAuthEnabled();
+
   return (
     <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
@@ -64,6 +68,7 @@ export function AppNav({
           >
             Ayarlar
           </Link>
+          {authOn ? <LogoutButton /> : null}
         </nav>
       </div>
     </header>
