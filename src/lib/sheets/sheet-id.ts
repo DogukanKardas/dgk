@@ -7,6 +7,16 @@ export function a1SheetName(name: string): string {
 
 export type ResolvedSheet = { sheetId: number; title: string };
 
+/** Görünmez karakter, NBSP, NFKC farklarını yok sayarak sekme adı anahtarı (eşleştirme için). */
+export function sheetTitleCompareKey(s: string): string {
+  return s
+    .replace(/\uFEFF/g, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .replace(/\u00A0/g, " ")
+    .normalize("NFKC")
+    .trim();
+}
+
 /**
  * Sekme adını API’deki gerçek başlıkla eşleştirir; values.get aralığında bu başlık kullanılmalı
  * (aksi halde "Unable to parse range" oluşabilir: yanlış ID, trim, büyük/küçük harf, Unicode).
@@ -41,6 +51,10 @@ export async function resolveSheetByTitle(
   if (!match) {
     const lower = trimmed.toLowerCase();
     match = entries.find((e) => e.title.toLowerCase() === lower);
+  }
+  if (!match) {
+    const key = sheetTitleCompareKey(trimmed);
+    match = entries.find((e) => sheetTitleCompareKey(e.title) === key);
   }
 
   if (!match) {

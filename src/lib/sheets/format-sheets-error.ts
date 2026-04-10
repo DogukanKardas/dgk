@@ -14,7 +14,7 @@ export function formatSheetsApiError(e: unknown): string {
   if (lower.includes("sayfa bulunamadı")) {
     return [
       raw,
-      "Sheets’te bu isimde bir sekme yok veya .env’deki ad eşleşmiyor: sekme adı birebir aynı olmalı (boşluk, büyük/küçük harf, tire). CRM için SHEET_CRM_LEADS_NAME ve SHEET_CRM_TEMPLATES_NAME değerlerini kontrol edin.",
+      "Yukarıdaki sekme listesinde aradığınız isim görünüyorsa sorun genelde gizli karakter veya Vercel/.env’de yanlışlıkla eklenmiş tırnaklardır; SHEET_* değerini silip yeniden yazın (tırnaksız). Aksi halde sekme adını veya ortam değişkenini birebir eşleştirin.",
     ].join(" ");
   }
 

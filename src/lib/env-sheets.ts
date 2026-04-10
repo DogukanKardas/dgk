@@ -8,28 +8,41 @@ export function getSpreadsheetId(): string {
   return requireEnv("GOOGLE_SPREADSHEET_ID");
 }
 
+/** Ortam değişkeninde yanlışlıkla kalan tırnak / BOM’u temizler (Vercel’de sık görülür). */
+function parseSheetTabName(raw: string | undefined, fallback: string): string {
+  let s = (raw ?? fallback).trim().replace(/^\uFEFF/, "");
+  if (
+    s.length >= 2 &&
+    ((s.startsWith('"') && s.endsWith('"')) ||
+      (s.startsWith("'") && s.endsWith("'")))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 export function getSheetMediaName(): string {
-  return (process.env.SHEET_MEDIA_NAME ?? "Medya").trim();
+  return parseSheetTabName(process.env.SHEET_MEDIA_NAME, "Medya");
 }
 
 export function getSheetTasksName(): string {
-  return (process.env.SHEET_TASKS_NAME ?? "Görevler").trim();
+  return parseSheetTabName(process.env.SHEET_TASKS_NAME, "Görevler");
 }
 
 export function getSheetWorkName(): string {
-  return (process.env.SHEET_WORK_NAME ?? "İş").trim();
+  return parseSheetTabName(process.env.SHEET_WORK_NAME, "İş");
 }
 
 export function getSheetFinansName(): string {
-  return (process.env.SHEET_FINANS_NAME ?? "Finans").trim();
+  return parseSheetTabName(process.env.SHEET_FINANS_NAME, "Finans");
 }
 
 export function getSheetCrmLeadsName(): string {
-  return (process.env.SHEET_CRM_LEADS_NAME ?? "CRM_Leads").trim();
+  return parseSheetTabName(process.env.SHEET_CRM_LEADS_NAME, "CRM_Leads");
 }
 
 export function getSheetCrmTemplatesName(): string {
-  return (process.env.SHEET_CRM_TEMPLATES_NAME ?? "CRM_Sablonlar").trim();
+  return parseSheetTabName(process.env.SHEET_CRM_TEMPLATES_NAME, "CRM_Sablonlar");
 }
 
 export function getOverpassApiUrl(): string {
