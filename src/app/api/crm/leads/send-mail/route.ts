@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { applyCrmTemplateVars } from "@/lib/crm-template-vars";
-import { sendCrmOutboundMail, isCrmSmtpConfigured } from "@/lib/crm-mail";
+import {
+  formatCrmSmtpErrorMessage,
+  isCrmSmtpConfigured,
+  sendCrmOutboundMail,
+} from "@/lib/crm-mail";
 import { normalizeIletisimDurumu } from "@/lib/crm-outreach";
 import {
   listCrmLeads,
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "E-posta gönderimi için SMTP_HOST ve CRM_MAIL_FROM ortam değişkenleri gerekli. Ayrıntılar .env.example dosyasında.",
+            "E-posta gönderimi için CRM_MAIL_FROM ve (Resend: RESEND_API_KEY | SMTP: SMTP_HOST) gerekli. Ayrıntılar .env.example dosyasında.",
         },
         { status: 503 }
       );
@@ -131,8 +135,13 @@ export async function POST(request: Request) {
         await updateCrmLead(sheetRow, updated);
         results.push({ row: sheetRow, ok: true, to });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Gönderim hatası";
-        results.push({ row: sheetRow, ok: false, to, error: msg });
+        const raw = e instanceof Error ? e.message : "Gönderim hatası";
+        results.push({
+          row: sheetRow,
+          ok: false,
+          to,
+          error: formatCrmSmtpErrorMessage(raw),
+        });
       }
 
       await new Promise((r) => setTimeout(r, 350));
