@@ -60,3 +60,44 @@ export function finansDataStartIndex(values: unknown[][]): number {
   }
   return 0;
 }
+
+/** CRM adayları: A1 = osm_key veya OSM. */
+export function crmLeadsDataStartIndex(values: unknown[][]): number {
+  if (values.length === 0) return 0;
+  const a = String(values[0]?.[0] ?? "")
+    .trim()
+    .toLowerCase();
+  if (
+    a === "osm_key" ||
+    a === "osm id" ||
+    a === "osm_id" ||
+    a === "osm"
+  ) {
+    return 1;
+  }
+  const b = String(values[0]?.[1] ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  if (a === "ad" && (b === "adres" || b === "address")) {
+    return 1;
+  }
+  return 0;
+}
+
+/** CRM şablonları: A1 = ad veya şablon_adı. */
+export function crmTemplatesDataStartIndex(values: unknown[][]): number {
+  if (values.length === 0) return 0;
+  const a = String(values[0]?.[0] ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  if (
+    a === "ad" ||
+    a === "şablon" ||
+    a === "sablon" ||
+    a === "isim" ||
+    a === "name"
+  ) {
+    return 1;
+  }
+  return 0;
+}

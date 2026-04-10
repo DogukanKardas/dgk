@@ -1,4 +1,6 @@
 import {
+  getSheetCrmLeadsName,
+  getSheetCrmTemplatesName,
   getSheetFinansName,
   getSheetMediaName,
   getSheetTasksName,
@@ -12,6 +14,9 @@ export type SettingsSnapshot = {
   sheetTasksName: string;
   sheetWorkName: string;
   sheetFinansName: string;
+  sheetCrmLeadsName: string;
+  sheetCrmTemplatesName: string;
+  crmDiscoveryNote: string;
 };
 
 export function getSettingsSnapshot(): SettingsSnapshot {
@@ -26,5 +31,9 @@ export function getSettingsSnapshot(): SettingsSnapshot {
     sheetTasksName: getSheetTasksName(),
     sheetWorkName: getSheetWorkName(),
     sheetFinansName: getSheetFinansName(),
+    sheetCrmLeadsName: getSheetCrmLeadsName(),
+    sheetCrmTemplatesName: getSheetCrmTemplatesName(),
+    crmDiscoveryNote:
+      "CRM keşfi OpenStreetMap + Overpass kullanır; API anahtarı gerekmez. Kota için bbox ve arama sıklığını sınırlayın.",
   };
 }

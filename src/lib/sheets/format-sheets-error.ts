@@ -31,7 +31,9 @@ export function formatSheetsApiError(e: unknown): string {
   ) {
     return [
       "E-tablo veya sekme bulunamadı.",
-      "GOOGLE_SPREADSHEET_ID ve SHEET_* sekme adlarını kontrol edin; ilk satırda başlıklar README’deki sırayla olmalıdır.",
+      "Kontrol listesi: (1) GOOGLE_SPREADSHEET_ID, adres çubuğundaki /spreadsheets/d/…/edit kimliği ile aynı mı? (2) Service Account e-postası bu dosyada Düzenleyici mi?",
+      "(3) Sayfa adları .env’deki isimlerle birebir aynı mı? Medya, Görevler, İş, Finans; CRM kullanıyorsanız ayrıca SHEET_CRM_LEADS_NAME (varsayılan CRM_Leads) ve SHEET_CRM_TEMPLATES_NAME (varsayılan CRM_Sablonlar) sekmelerini oluşturun.",
+      "(4) İlk satır başlık ise sütun sırası README’deki CRM / diğer modüllerle uyumlu olmalıdır.",
     ].join(" ");
   }
 

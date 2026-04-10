@@ -13,6 +13,8 @@ function buildEnvLocalText(params: {
   sheetTasks: string;
   sheetWork: string;
   sheetFinans: string;
+  sheetCrmLeads: string;
+  sheetCrmTemplates: string;
   serviceAccountJson: string;
 }): string {
   const lines: string[] = [
@@ -24,6 +26,8 @@ function buildEnvLocalText(params: {
     `SHEET_TASKS_NAME=${params.sheetTasks.trim() || "Görevler"}`,
     `SHEET_WORK_NAME=${params.sheetWork.trim() || "İş"}`,
     `SHEET_FINANS_NAME=${params.sheetFinans.trim() || "Finans"}`,
+    `SHEET_CRM_LEADS_NAME=${params.sheetCrmLeads.trim() || "CRM_Leads"}`,
+    `SHEET_CRM_TEMPLATES_NAME=${params.sheetCrmTemplates.trim() || "CRM_Sablonlar"}`,
     "",
   ];
 
@@ -92,6 +96,12 @@ export function SettingsPanel({
   const [sheetTasks, setSheetTasks] = useState(initialStatus.sheetTasksName);
   const [sheetWork, setSheetWork] = useState(initialStatus.sheetWorkName);
   const [sheetFinans, setSheetFinans] = useState(initialStatus.sheetFinansName);
+  const [sheetCrmLeads, setSheetCrmLeads] = useState(
+    initialStatus.sheetCrmLeadsName
+  );
+  const [sheetCrmTemplates, setSheetCrmTemplates] = useState(
+    initialStatus.sheetCrmTemplatesName
+  );
   const [serviceAccountJson, setServiceAccountJson] = useState("");
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
 
@@ -113,11 +123,16 @@ export function SettingsPanel({
         sheetTasksName: data.sheetTasksName,
         sheetWorkName: data.sheetWorkName,
         sheetFinansName: data.sheetFinansName,
+        sheetCrmLeadsName: data.sheetCrmLeadsName,
+        sheetCrmTemplatesName: data.sheetCrmTemplatesName,
+        crmDiscoveryNote: data.crmDiscoveryNote,
       });
       setSheetMedia(data.sheetMediaName);
       setSheetTasks(data.sheetTasksName);
       setSheetWork(data.sheetWorkName);
       setSheetFinans(data.sheetFinansName);
+      setSheetCrmLeads(data.sheetCrmLeadsName);
+      setSheetCrmTemplates(data.sheetCrmTemplatesName);
     } catch {
       setLoadError("Durum alınamadı");
     }
@@ -130,6 +145,8 @@ export function SettingsPanel({
       sheetTasks,
       sheetWork,
       sheetFinans,
+      sheetCrmLeads,
+      sheetCrmTemplates,
       serviceAccountJson,
     });
     try {
@@ -206,7 +223,12 @@ export function SettingsPanel({
             <code className="text-zinc-400">{status.sheetWorkName}</code>
             {", "}Finans →{" "}
             <code className="text-zinc-400">{status.sheetFinansName}</code>
+            {", "}CRM adaylar →{" "}
+            <code className="text-zinc-400">{status.sheetCrmLeadsName}</code>
+            {", "}CRM şablonlar →{" "}
+            <code className="text-zinc-400">{status.sheetCrmTemplatesName}</code>
           </p>
+          <p className="text-xs text-zinc-500">{status.crmDiscoveryNote}</p>
           <button
             type="button"
             onClick={() => void refresh()}
@@ -272,6 +294,22 @@ export function SettingsPanel({
             <input
               value={sheetFinans}
               onChange={(e) => setSheetFinans(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-zinc-400 sm:col-span-2">
+            SHEET_CRM_LEADS_NAME
+            <input
+              value={sheetCrmLeads}
+              onChange={(e) => setSheetCrmLeads(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-zinc-400 sm:col-span-2">
+            SHEET_CRM_TEMPLATES_NAME
+            <input
+              value={sheetCrmTemplates}
+              onChange={(e) => setSheetCrmTemplates(e.target.value)}
               className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
             />
           </label>

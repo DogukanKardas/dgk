@@ -1,6 +1,6 @@
 # DGK · Medya, Görev ve İş
 
-Next.js uygulaması: **Medya**, **Görev**, **İş** ve **Finans** listelerini yönetir; veri **Google Sheets** üzerinde tutulur. [Vercel](https://vercel.com) üzerinde deploy için uygundur.
+Next.js uygulaması: **Medya**, **Görev**, **İş**, **Finans** ve **CRM** listelerini yönetir; veri **Google Sheets** üzerinde tutulur. [Vercel](https://vercel.com) üzerinde deploy için uygundur.
 
 **Yerel kurulum (Google Cloud, Service Account, `.env.local`):** adım adım rehber için [`docs/LOCAL-GOOGLE-SHEETS-TR.md`](./docs/LOCAL-GOOGLE-SHEETS-TR.md) dosyasına bakın. Uygulama içinden bağlantı özeti ve şablon için `/ayarlar` sayfasını kullanabilirsiniz.
 
@@ -12,7 +12,7 @@ Next.js uygulaması: **Medya**, **Görev**, **İş** ve **Finans** listelerini y
 
 ## E-tablo düzeni
 
-Tek bir spreadsheet içinde **Medya**, **Görevler** ve **İş** sekmeleri zorunludur. **Finans** sekmesi uygulamadaki Finans menüsü için gereklidir (yoksa `/api/finans` Sheets hatası verir). İlk satır başlıklar tam olarak şu sırada olmalıdır:
+Tek bir spreadsheet içinde **Medya**, **Görevler** ve **İş** sekmeleri zorunludur. **Finans** sekmesi uygulamadaki Finans menüsü için gereklidir (yoksa `/api/finans` Sheets hatası verir). **CRM** sekmeleri yalnızca `/crm` kullanıyorsanız gereklidir; eksikse “E-tablo veya sekme bulunamadı” benzeri hata alırsınız. İlk satır başlıklar tam olarak şu sırada olmalıdır:
 
 **Sekme `Medya` (veya `SHEET_MEDIA_NAME`):**
 
@@ -53,6 +53,14 @@ Aynı tabloda `tip` sütunu ile **Gelir**, **Gider** ve **Fatura** satırları b
 | L | `notlar` |
 | M | `ek` |
 
+**Sekme `CRM_Leads` (veya `SHEET_CRM_LEADS_NAME`):** CRM adayları.
+
+`osm_key` | `ad` | `adres` | `telefon` | `web_sitesi` | `web_var_mi` | `kaynak` | `notlar` | `asama` | `skor` | `kriter_json` | `olusturma` | `guncelleme`
+
+**Sekme `CRM_Sablonlar` (veya `SHEET_CRM_TEMPLATES_NAME`):** CRM mesaj şablonları.
+
+`ad` | `kanal` | `konu` | `govde`
+
 ## Ortam değişkenleri
 
 [`.env.example`](./.env.example) dosyasını `.env.local` olarak kopyalayın ve doldurun.
@@ -66,6 +74,8 @@ Aynı tabloda `tip` sütunu ile **Gelir**, **Gider** ve **Fatura** satırları b
 | `SHEET_TASKS_NAME` | İsteğe bağlı; varsayılan `Görevler`. |
 | `SHEET_WORK_NAME` | İsteğe bağlı; varsayılan `İş`. |
 | `SHEET_FINANS_NAME` | İsteğe bağlı; varsayılan `Finans`. |
+| `SHEET_CRM_LEADS_NAME` | İsteğe bağlı; varsayılan `CRM_Leads`. `/crm` için sekme oluşturun. |
+| `SHEET_CRM_TEMPLATES_NAME` | İsteğe bağlı; varsayılan `CRM_Sablonlar`. Şablonlar sekmesi için. |
 
 ### Vercel deploy
 
@@ -105,5 +115,8 @@ npm start
 | `GET` / `POST` / `PATCH` / `DELETE` | `/api/is` | İş kayıtları; alanlar: `tarih`, `sirket`, `isTuru`, `baslik`, `durum`, `tutar`, `paraBirimi`, `bitisTarihi`, `link`, `notlar`, `musteriIsmi`, `iletisim`, `sureAy`, `aylikTutar`, `aylikOdemeAylar` (örn. `1,2`). |
 | `GET` / `POST` / `PATCH` / `DELETE` | `/api/finans` | Finans; alanlar: `tip`, `tarih`, `tutar`, `paraBirimi`, `baslik`, `kategori`, `durum`, `vadeTarihi`, `belgeNo`, `isSheetRow`, `link`, `notlar`, `ek`. |
 | `GET` | `/api/settings` | Yerel özet: `hasSpreadsheetId`, `hasServiceAccountJson`, efektif `sheet*` adları (gizli değer yok). |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/api/crm/leads` | CRM adayları; alanlar: `osmKey`, `ad`, `adres`, `telefon`, `webSitesi`, `webVarMi`, `kaynak`, `notlar`, `asama`, `skor`, `kriterJson`, `olusturma`, `guncelleme`. Toplu: `{ "bulk": true, "rows": [...] }`. |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/api/crm/templates` | Şablonlar; alanlar: `ad`, `kanal`, `konu`, `govde`. |
+| `POST` | `/api/crm/discover` | OSM Overpass keşfi (bbox veya il/ilçe metni). |
 
 Silme ve güncelleme, Sheet’teki **gerçek satır numarasına** dayanır; satırlar arası ekleme yapıldıysa yenileme sonrası güncel numarayı kullanın.

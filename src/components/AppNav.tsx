@@ -10,7 +10,7 @@ const active =
 export function AppNav({
   current,
 }: {
-  current: "medya" | "gorevler" | "is" | "finans" | "ayarlar";
+  current: "medya" | "gorevler" | "is" | "finans" | "crm" | "ayarlar";
 }) {
   return (
     <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
@@ -49,6 +49,13 @@ export function AppNav({
             prefetch
           >
             Finans
+          </Link>
+          <Link
+            href="/crm"
+            className={current === "crm" ? active : link}
+            prefetch
+          >
+            CRM
           </Link>
           <Link
             href="/ayarlar"
