@@ -30,7 +30,7 @@ export function CrmTemplateOutreach() {
   const [leads, setLeads] = useState<CrmLeadRowWithRow[]>([]);
   const [templates, setTemplates] = useState<MailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [smtpOk, setSmtpOk] = useState<boolean | null>(null);
+  const [mailOk, setMailOk] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendReport, setSendReport] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function CrmTemplateOutreach() {
     setLoading(true);
     setError(null);
     try {
-      const [lr, tr, smtp] = await Promise.all([
+      const [lr, tr, mailCfg] = await Promise.all([
         fetch("/api/crm/leads", { cache: "no-store" }).then((r) => r.json()),
         fetch("/api/crm/templates", { cache: "no-store" }).then((r) =>
           r.json()
@@ -64,7 +64,7 @@ export function CrmTemplateOutreach() {
       if (tr.error) throw new Error(tr.error);
       setLeads(lr.rows ?? []);
       setTemplates(tr.rows ?? []);
-      setSmtpOk(Boolean(smtp?.smtpConfigured));
+      setMailOk(Boolean(mailCfg?.mailConfigured));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Yükleme hatası");
       setLeads([]);
@@ -208,15 +208,17 @@ export function CrmTemplateOutreach() {
         <strong className="text-zinc-400">CRM_Leads</strong> sayfasına{" "}
         <code className="text-zinc-400">N: eposta</code> ve{" "}
         <code className="text-zinc-400">O: iletisim_durumu</code> sütunlarını
-        ekleyin (mevcut M’den sonra). Gönderim için sunucuda SMTP ortam
-        değişkenleri gerekir — bkz. <code className="text-zinc-400">.env.example</code>.
+        ekleyin (mevcut M’den sonra). Gönderim için sunucuda{" "}
+        <code className="text-zinc-400">RESEND_API_KEY</code> ve{" "}
+        <code className="text-zinc-400">CRM_MAIL_FROM</code> gerekir — bkz.{" "}
+        <code className="text-zinc-400">.env.example</code>.
       </p>
 
-      {smtpOk === false ? (
+      {mailOk === false ? (
         <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
-          SMTP yapılandırılmamış görünüyor; gönderim çalışmaz.{" "}
-          <code className="text-amber-100/90">SMTP_HOST</code>,{" "}
-          <code className="text-amber-100/90">CRM_MAIL_FROM</code> vb. tanımlayın.
+          Resend yapılandırılmamış görünüyor; gönderim çalışmaz.{" "}
+          <code className="text-amber-100/90">RESEND_API_KEY</code> ve{" "}
+          <code className="text-amber-100/90">CRM_MAIL_FROM</code> tanımlayın.
         </p>
       ) : null}
 
@@ -342,7 +344,7 @@ export function CrmTemplateOutreach() {
             loading ||
             selectedLeads.size === 0 ||
             !templateRow ||
-            smtpOk === false
+            mailOk === false
           }
           onClick={() => void sendMail()}
           className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-40"

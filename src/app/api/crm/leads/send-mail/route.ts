@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { applyCrmTemplateVars } from "@/lib/crm-template-vars";
 import {
-  formatCrmSmtpErrorMessage,
-  isCrmSmtpConfigured,
+  formatCrmMailErrorMessage,
+  isCrmMailConfigured,
   sendCrmOutboundMail,
 } from "@/lib/crm-mail";
 import { normalizeIletisimDurumu } from "@/lib/crm-outreach";
@@ -18,18 +18,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function GET() {
-  return NextResponse.json({ smtpConfigured: isCrmSmtpConfigured() });
+  return NextResponse.json({ mailConfigured: isCrmMailConfigured() });
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
   try {
-    if (!isCrmSmtpConfigured()) {
+    if (!isCrmMailConfigured()) {
       return NextResponse.json(
         {
           error:
-            "E-posta gönderimi için CRM_MAIL_FROM ve (Resend: RESEND_API_KEY | SMTP: SMTP_HOST) gerekli. Ayrıntılar .env.example dosyasında.",
+            "E-posta gönderimi için RESEND_API_KEY ve CRM_MAIL_FROM gerekli. Ayrıntılar .env.example dosyasında.",
         },
         { status: 503 }
       );
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
           row: sheetRow,
           ok: false,
           to,
-          error: formatCrmSmtpErrorMessage(raw),
+          error: formatCrmMailErrorMessage(raw),
         });
       }
 
