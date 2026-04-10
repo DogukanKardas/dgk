@@ -11,6 +11,13 @@ export function formatSheetsApiError(e: unknown): string {
 
   const lower = raw.toLowerCase();
 
+  if (lower.includes("sayfa bulunamadı")) {
+    return [
+      raw,
+      "Sheets’te bu isimde bir sekme yok veya .env’deki ad eşleşmiyor: sekme adı birebir aynı olmalı (boşluk, büyük/küçük harf, tire). CRM için SHEET_CRM_LEADS_NAME ve SHEET_CRM_TEMPLATES_NAME değerlerini kontrol edin.",
+    ].join(" ");
+  }
+
   if (
     lower.includes("does not have permission") ||
     lower.includes("permission denied") ||
@@ -29,10 +36,15 @@ export function formatSheetsApiError(e: unknown): string {
     lower.includes("requested entity was not found") ||
     lower.includes("unable to parse range")
   ) {
+    const apiSnippet =
+      raw.length > 0 && raw.length <= 240 && !raw.includes("\n")
+        ? ` Google API: ${raw}`
+        : "";
     return [
-      "E-tablo veya sekme bulunamadı.",
+      "E-tablo veya sekme bulunamadı." + apiSnippet,
+      "Not: Kimlik doğru görünüp de bu hata sürüyorsa Google bazen erişim yokluğunu da 404 ile döndürür; Service Account e-postasını tabloda Düzenleyici olarak paylaştığınızdan emin olun.",
       "Kontrol listesi: (1) GOOGLE_SPREADSHEET_ID, adres çubuğundaki /spreadsheets/d/…/edit kimliği ile aynı mı? (2) Service Account e-postası bu dosyada Düzenleyici mi?",
-      "(3) Sayfa adları .env’deki isimlerle birebir aynı mı? Medya, Görevler, İş, Finans; CRM kullanıyorsanız ayrıca SHEET_CRM_LEADS_NAME (varsayılan CRM_Leads) ve SHEET_CRM_TEMPLATES_NAME (varsayılan CRM_Sablonlar) sekmelerini oluşturun.",
+      "(3) Sayfa adları .env’deki isimlerle birebir aynı mı? Medya, Görevler, İş, Finans; CRM için SHEET_CRM_LEADS_NAME (varsayılan CRM_Leads) ve SHEET_CRM_TEMPLATES_NAME (varsayılan CRM_Sablonlar) sekmelerini oluşturun.",
       "(4) İlk satır başlık ise sütun sırası README’deki CRM / diğer modüllerle uyumlu olmalıdır.",
     ].join(" ");
   }
