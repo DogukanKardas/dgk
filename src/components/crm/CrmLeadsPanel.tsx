@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  filterExcludedByName,
+  nameMatchesExclude,
+  parseExcludeKeywords,
+} from "@/lib/crm-discover-display";
+import {
   CRM_ASAMALAR,
   CRM_SCORE_CRITERIA,
   computeLeadScore,
@@ -9,6 +14,9 @@ import {
   stringifyCriteriaJson,
   type CriteriaState,
 } from "@/lib/crm-scoring";
+
+const FORBIDDEN_NAMES_LS_KEY = "dgk_crm_leads_forbidden_keywords";
+const FORBIDDEN_PURGE_DEBOUNCE_MS = 1200;
 
 export type CrmLeadRowWithRow = {
   row: number;
@@ -86,6 +94,9 @@ export function CrmLeadsPanel() {
   const [editCriteria, setEditCriteria] = useState<CriteriaState>({});
   const [busy, setBusy] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [forbiddenNamesRaw, setForbiddenNamesRaw] = useState("");
+  const [debouncedForbidden, setDebouncedForbidden] = useState("");
+  const purgeBusyRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,29 +124,109 @@ export function CrmLeadsPanel() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(FORBIDDEN_NAMES_LS_KEY);
+      if (v != null) setForbiddenNamesRaw(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FORBIDDEN_NAMES_LS_KEY, forbiddenNamesRaw);
+    } catch {
+      /* ignore */
+    }
+  }, [forbiddenNamesRaw]);
+
+  useEffect(() => {
+    const t = setTimeout(
+      () => setDebouncedForbidden(forbiddenNamesRaw),
+      FORBIDDEN_PURGE_DEBOUNCE_MS
+    );
+    return () => clearTimeout(t);
+  }, [forbiddenNamesRaw]);
+
+  const deleteLeadRows = useCallback(async (sheetRows: number[]) => {
+    if (sheetRows.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/crm/leads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: sheetRows }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? res.statusText);
+      setSelectedRows((prev) => {
+        const next = new Set(prev);
+        for (const r of sheetRows) next.delete(r);
+        return next;
+      });
+      setEditRow((cur) =>
+        cur != null && sheetRows.includes(cur) ? null : cur
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Silinemedi");
+    } finally {
+      setBusy(false);
+    }
+  }, [load]);
+
+  useEffect(() => {
+    const kw = parseExcludeKeywords(debouncedForbidden);
+    if (kw.length === 0 || loading || purgeBusyRef.current) return;
+    const hits = rows.filter((r) => nameMatchesExclude(r.ad, kw));
+    if (hits.length === 0) return;
+
+    let cancelled = false;
+    purgeBusyRef.current = true;
+    const sheetRows = hits.map((h) => h.row).sort((a, b) => b - a);
+    void (async () => {
+      if (cancelled) {
+        purgeBusyRef.current = false;
+        return;
+      }
+      try {
+        await deleteLeadRows(sheetRows);
+      } finally {
+        purgeBusyRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, debouncedForbidden, loading, deleteLeadRows]);
+
   const filtered = useMemo(() => {
     let list = rows;
     if (filterAsama) {
       list = list.filter((r) => r.asama === filterAsama);
     }
     const q = filter.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((r) =>
-      [
-        r.ad,
-        r.adres,
-        r.telefon,
-        r.webSitesi,
-        r.notlar,
-        r.kaynak,
-        r.asama,
-        r.skor,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [rows, filter, filterAsama]);
+    if (q) {
+      list = list.filter((r) =>
+        [
+          r.ad,
+          r.adres,
+          r.telefon,
+          r.webSitesi,
+          r.notlar,
+          r.kaynak,
+          r.asama,
+          r.skor,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    return filterExcludedByName(list, forbiddenNamesRaw);
+  }, [rows, filter, filterAsama, forbiddenNamesRaw]);
 
   const displayRows = useMemo(() => {
     if (sortOrder !== "web_first") return filtered;
@@ -258,28 +349,7 @@ export function CrmLeadsPanel() {
         ? "Bu adayı silmek istiyor musunuz?"
         : `${sheetRows.length} adayı silmek istiyor musunuz?`;
     if (!confirm(msg)) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/crm/leads", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: sheetRows }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? res.statusText);
-      setSelectedRows((prev) => {
-        const next = new Set(prev);
-        for (const r of sheetRows) next.delete(r);
-        return next;
-      });
-      if (editRow != null && sheetRows.includes(editRow)) setEditRow(null);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Silinemedi");
-    } finally {
-      setBusy(false);
-    }
+    await deleteLeadRows(sheetRows);
   }
 
   async function onDelete(row: number) {
@@ -376,6 +446,31 @@ export function CrmLeadsPanel() {
         >
           {adding ? "İptal" : "Yeni aday"}
         </button>
+      </div>
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+        <label className="block text-xs font-medium text-zinc-400">
+          Yasaklı isim kelimeleri
+          <textarea
+            value={forbiddenNamesRaw}
+            onChange={(e) => setForbiddenNamesRaw(e.target.value)}
+            placeholder="Virgül veya satır ile: Starbucks, 7-Eleven, McDonald's…"
+            rows={2}
+            className="mt-1 w-full resize-y rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+          />
+        </label>
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-200/85">
+          <span className="font-medium text-amber-100/90">Dikkat:</span> Ad
+          sütununda bu metinlerden biri geçen satırlar{" "}
+          <span className="text-zinc-200">hemen listede gösterilmez</span> hem
+          de yazmayı bitirdikten yaklaşık{" "}
+          {Math.round(FORBIDDEN_PURGE_DEBOUNCE_MS / 1000)} sn sonra{" "}
+          <span className="text-zinc-200">
+            Google Sheets’ten kalıcı silinir
+          </span>{" "}
+          (onay penceresi yok). Liste büyük/küçük harf duyarsız eşleşir. Bu kutu
+          tarayıcıda saklanır.
+        </p>
       </div>
 
       {adding ? (
