@@ -31,10 +31,17 @@ export function formatSheetsApiError(e: unknown): string {
     ].join(" ");
   }
 
+  if (lower.includes("unable to parse range")) {
+    return [
+      raw,
+      "Bu hata genelde şu anlama gelir: uygulamanın kullandığı GOOGLE_SPREADSHEET_ID ile tarayıcıda açtığınız dosya aynı değil (ör. Vercel’de eski ID kaldıysa), ya da aralıktaki sekme adı o dosyada yok.",
+      "Çözüm: Ortam değişkenindeki kimliği adres çubuğundan tekrar kopyalayın; gerekirse Service Account’u bu dosyada Düzenleyici yapın. Sekme adı .env’de SHEET_CRM_TEMPLATES_NAME / SHEET_CRM_LEADS_NAME ile eşleşmeli.",
+    ].join(" ");
+  }
+
   if (
     lower.includes("not found") ||
-    lower.includes("requested entity was not found") ||
-    lower.includes("unable to parse range")
+    lower.includes("requested entity was not found")
   ) {
     const apiSnippet =
       raw.length > 0 && raw.length <= 240 && !raw.includes("\n")

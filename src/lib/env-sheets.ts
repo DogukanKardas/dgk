@@ -9,27 +9,27 @@ export function getSpreadsheetId(): string {
 }
 
 export function getSheetMediaName(): string {
-  return process.env.SHEET_MEDIA_NAME ?? "Medya";
+  return (process.env.SHEET_MEDIA_NAME ?? "Medya").trim();
 }
 
 export function getSheetTasksName(): string {
-  return process.env.SHEET_TASKS_NAME ?? "Görevler";
+  return (process.env.SHEET_TASKS_NAME ?? "Görevler").trim();
 }
 
 export function getSheetWorkName(): string {
-  return process.env.SHEET_WORK_NAME ?? "İş";
+  return (process.env.SHEET_WORK_NAME ?? "İş").trim();
 }
 
 export function getSheetFinansName(): string {
-  return process.env.SHEET_FINANS_NAME ?? "Finans";
+  return (process.env.SHEET_FINANS_NAME ?? "Finans").trim();
 }
 
 export function getSheetCrmLeadsName(): string {
-  return process.env.SHEET_CRM_LEADS_NAME ?? "CRM_Leads";
+  return (process.env.SHEET_CRM_LEADS_NAME ?? "CRM_Leads").trim();
 }
 
 export function getSheetCrmTemplatesName(): string {
-  return process.env.SHEET_CRM_TEMPLATES_NAME ?? "CRM_Sablonlar";
+  return (process.env.SHEET_CRM_TEMPLATES_NAME ?? "CRM_Sablonlar").trim();
 }
 
 export function getOverpassApiUrl(): string {

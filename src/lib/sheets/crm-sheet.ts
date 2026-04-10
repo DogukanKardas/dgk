@@ -4,7 +4,7 @@ import {
   getSheetCrmTemplatesName,
   getSpreadsheetId,
 } from "@/lib/env-sheets";
-import { a1SheetName, getSheetIdByTitle } from "@/lib/sheets/sheet-id";
+import { a1SheetName, resolveSheetByTitle } from "@/lib/sheets/sheet-id";
 import {
   crmLeadsDataStartIndex,
   crmTemplatesDataStartIndex,
@@ -133,7 +133,8 @@ export async function listCrmLeads(): Promise<CrmLeadRowWithRow[]> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmLeadsName();
-  const range = `${a1SheetName(name)}!A1:${LEADS_COL_LAST}`;
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
+  const range = `${a1SheetName(title)}!A1:${LEADS_COL_LAST}`;
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const values = res.data.values ?? [];
   const start = crmLeadsDataStartIndex(values);
@@ -148,9 +149,10 @@ export async function appendCrmLead(row: CrmLeadRow): Promise<void> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmLeadsName();
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${a1SheetName(name)}!A1`,
+    range: `${a1SheetName(title)}!A1`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: leadToValues(row) },
@@ -162,10 +164,11 @@ export async function appendCrmLeadsBulk(rows: CrmLeadRow[]): Promise<void> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmLeadsName();
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
   const values = rows.map((r) => leadToValues(r)[0]);
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${a1SheetName(name)}!A1`,
+    range: `${a1SheetName(title)}!A1`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values },
@@ -182,7 +185,8 @@ export async function updateCrmLead(
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmLeadsName();
-  const range = `${a1SheetName(name)}!A${sheetRow}:${LEADS_COL_LAST}${sheetRow}`;
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
+  const range = `${a1SheetName(title)}!A${sheetRow}:${LEADS_COL_LAST}${sheetRow}`;
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
@@ -198,7 +202,7 @@ export async function deleteCrmLead(sheetRow: number): Promise<void> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmLeadsName();
-  const sheetId = await getSheetIdByTitle(sheets, spreadsheetId, name);
+  const { sheetId } = await resolveSheetByTitle(sheets, spreadsheetId, name);
   const startIndex = sheetRow - 1;
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -223,7 +227,8 @@ export async function listCrmTemplates(): Promise<CrmTemplateRowWithRow[]> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmTemplatesName();
-  const range = `${a1SheetName(name)}!A1:${TEMPLATE_COL_LAST}`;
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
+  const range = `${a1SheetName(title)}!A1:${TEMPLATE_COL_LAST}`;
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const values = res.data.values ?? [];
   const start = crmTemplatesDataStartIndex(values);
@@ -238,9 +243,10 @@ export async function appendCrmTemplate(row: CrmTemplateRow): Promise<void> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmTemplatesName();
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${a1SheetName(name)}!A1`,
+    range: `${a1SheetName(title)}!A1`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: templateToValues(row) },
@@ -257,7 +263,8 @@ export async function updateCrmTemplate(
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmTemplatesName();
-  const range = `${a1SheetName(name)}!A${sheetRow}:${TEMPLATE_COL_LAST}${sheetRow}`;
+  const { title } = await resolveSheetByTitle(sheets, spreadsheetId, name);
+  const range = `${a1SheetName(title)}!A${sheetRow}:${TEMPLATE_COL_LAST}${sheetRow}`;
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
@@ -273,7 +280,7 @@ export async function deleteCrmTemplate(sheetRow: number): Promise<void> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   const name = getSheetCrmTemplatesName();
-  const sheetId = await getSheetIdByTitle(sheets, spreadsheetId, name);
+  const { sheetId } = await resolveSheetByTitle(sheets, spreadsheetId, name);
   const startIndex = sheetRow - 1;
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
