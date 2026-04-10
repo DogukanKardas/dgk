@@ -58,3 +58,15 @@ export function normalizeBBoxGeography(b: GeoBBox): GeoBBox {
 
   return { south, west, north, east };
 }
+
+/** Nokta, normalize edilmiş dikdörtgen bbox içinde mi (sınırlar dahil). */
+export function isPointInGeoBBox(
+  lat: number,
+  lon: number,
+  b: GeoBBox
+): boolean {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  if (lat < b.south || lat > b.north) return false;
+  if (lon < b.west || lon > b.east) return false;
+  return true;
+}

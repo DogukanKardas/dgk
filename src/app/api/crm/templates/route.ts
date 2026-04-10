@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   appendCrmTemplate,
   deleteCrmTemplate,
+  deleteCrmTemplatesBulk,
   listCrmTemplates,
   type CrmTemplateRow,
   updateCrmTemplate,
@@ -82,10 +83,23 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
+    if (Array.isArray(body.rows)) {
+      const rows = (body.rows as unknown[])
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n) && n >= 1);
+      if (rows.length === 0) {
+        return NextResponse.json(
+          { error: "rows dizisinde en az bir geçerli satır numarası (≥1) gerekli." },
+          { status: 400 }
+        );
+      }
+      await deleteCrmTemplatesBulk(rows);
+      return NextResponse.json({ ok: true, deleted: rows.length });
+    }
     const row = Number(body.row);
     if (!Number.isFinite(row) || row < 1) {
       return NextResponse.json(
-        { error: "Geçerli bir row (sayfa satırı, ≥1) gerekli." },
+        { error: "Geçerli bir row (sayfa satırı, ≥1) veya rows: [] dizisi gerekli." },
         { status: 400 }
       );
     }

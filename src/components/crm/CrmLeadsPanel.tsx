@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CRM_ASAMALAR,
   CRM_SCORE_CRITERIA,
@@ -74,6 +74,7 @@ export function CrmLeadsPanel() {
   const [editForm, setEditForm] = useState<LeadForm>(emptyForm());
   const [editCriteria, setEditCriteria] = useState<CriteriaState>({});
   const [busy, setBusy] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,6 +125,38 @@ export function CrmLeadsPanel() {
         .includes(q)
     );
   }, [rows, filter, filterAsama]);
+
+  const filteredRowNums = useMemo(
+    () => filtered.map((r) => r.row),
+    [filtered]
+  );
+  const allFilteredSelected =
+    filteredRowNums.length > 0 &&
+    filteredRowNums.every((n) => selectedRows.has(n));
+  const someFilteredSelected = filteredRowNums.some((n) =>
+    selectedRows.has(n)
+  );
+
+  function toggleSelectAllFiltered(checked: boolean) {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const n of filteredRowNums) next.add(n);
+      } else {
+        for (const n of filteredRowNums) next.delete(n);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectRow(row: number, checked: boolean) {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(row);
+      else next.delete(row);
+      return next;
+    });
+  }
 
   function syncNewScore(c: CriteriaState) {
     setNewCriteria(c);
@@ -197,19 +230,29 @@ export function CrmLeadsPanel() {
     }
   }
 
-  async function onDelete(row: number) {
-    if (!confirm("Bu adayı silmek istiyor musunuz?")) return;
+  async function onDeleteMany(sheetRows: number[]) {
+    if (sheetRows.length === 0) return;
+    const msg =
+      sheetRows.length === 1
+        ? "Bu adayı silmek istiyor musunuz?"
+        : `${sheetRows.length} adayı silmek istiyor musunuz?`;
+    if (!confirm(msg)) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/crm/leads", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ row }),
+        body: JSON.stringify({ rows: sheetRows }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? res.statusText);
-      if (editRow === row) setEditRow(null);
+      setSelectedRows((prev) => {
+        const next = new Set(prev);
+        for (const r of sheetRows) next.delete(r);
+        return next;
+      });
+      if (editRow != null && sheetRows.includes(editRow)) setEditRow(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Silinemedi");
@@ -217,6 +260,17 @@ export function CrmLeadsPanel() {
       setBusy(false);
     }
   }
+
+  async function onDelete(row: number) {
+    await onDeleteMany([row]);
+  }
+
+  const headerSelectRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = headerSelectRef.current;
+    if (!el) return;
+    el.indeterminate = someFilteredSelected && !allFilteredSelected;
+  }, [someFilteredSelected, allFilteredSelected]);
 
   function startEdit(r: CrmLeadRowWithRow) {
     const { row, ...rest } = r;
@@ -264,6 +318,16 @@ export function CrmLeadsPanel() {
           className="rounded-lg border border-zinc-600 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
         >
           Yenile
+        </button>
+        <button
+          type="button"
+          disabled={busy || selectedRows.size === 0}
+          onClick={() =>
+            void onDeleteMany([...selectedRows].sort((a, b) => a - b))
+          }
+          className="rounded-lg border border-red-500/50 px-3 py-2 text-sm text-red-200 hover:bg-red-950/50 disabled:opacity-40"
+        >
+          Seçilenleri sil ({selectedRows.size})
         </button>
         <button
           type="button"
@@ -413,6 +477,16 @@ export function CrmLeadsPanel() {
         <table className="min-w-[900px] w-full border-collapse text-left">
           <thead>
             <tr>
+              <th className={`${th} w-10`}>
+                <input
+                  ref={headerSelectRef}
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
+                  disabled={loading || filtered.length === 0}
+                  aria-label="Görünen satırların tümünü seç"
+                />
+              </th>
               <th className={th}>Skor</th>
               <th className={th}>Ad</th>
               <th className={th}>Aşama</th>
@@ -425,19 +499,29 @@ export function CrmLeadsPanel() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className={`${td} text-zinc-500`}>
+                <td colSpan={8} className={`${td} text-zinc-500`}>
                   Yükleniyor…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className={`${td} text-zinc-500`}>
+                <td colSpan={8} className={`${td} text-zinc-500`}>
                   Kayıt yok veya filtreye uymuyor.
                 </td>
               </tr>
             ) : (
               filtered.map((r) => (
                 <tr key={r.row}>
+                  <td className={`${td} w-10`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.has(r.row)}
+                      onChange={(e) =>
+                        toggleSelectRow(r.row, e.target.checked)
+                      }
+                      aria-label={`Seç: ${r.ad}`}
+                    />
+                  </td>
                   <td className={td}>
                     <span className="font-mono text-amber-400">{r.skor}</span>
                   </td>

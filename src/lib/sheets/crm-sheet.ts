@@ -223,6 +223,47 @@ export async function deleteCrmLead(sheetRow: number): Promise<void> {
   });
 }
 
+async function deleteCrmSheetRows(
+  sheetName: string,
+  sheetRows: number[]
+): Promise<void> {
+  const unique = [...new Set(sheetRows)]
+    .map((r) => Math.floor(Number(r)))
+    .filter((r) => Number.isFinite(r) && r >= 1)
+    .sort((a, b) => b - a);
+  if (unique.length === 0) return;
+  const sheets = await getSheetsClient();
+  const spreadsheetId = getSpreadsheetId();
+  const { sheetId } = await resolveSheetByTitle(sheets, spreadsheetId, sheetName);
+  for (const sheetRow of unique) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: "ROWS",
+                startIndex: sheetRow - 1,
+                endIndex: sheetRow,
+              },
+            },
+          },
+        ],
+      },
+    });
+  }
+}
+
+export async function deleteCrmLeadsBulk(sheetRows: number[]): Promise<void> {
+  await deleteCrmSheetRows(getSheetCrmLeadsName(), sheetRows);
+}
+
+export async function deleteCrmTemplatesBulk(sheetRows: number[]): Promise<void> {
+  await deleteCrmSheetRows(getSheetCrmTemplatesName(), sheetRows);
+}
+
 export async function listCrmTemplates(): Promise<CrmTemplateRowWithRow[]> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();

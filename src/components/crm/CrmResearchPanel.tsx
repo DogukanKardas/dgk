@@ -474,6 +474,24 @@ export function CrmResearchPanel({ onImported }: { onImported?: () => void }) {
             </button>
             <button
               type="button"
+              onClick={() => {
+                const drop = new Set(
+                  leads.filter((x) => selected[x.osmKey]).map((x) => x.osmKey)
+                );
+                if (drop.size === 0) return;
+                setLeads((list) => list.filter((x) => !drop.has(x.osmKey)));
+                setSelected((s) => {
+                  const next = { ...s };
+                  for (const k of drop) delete next[k];
+                  return next;
+                });
+              }}
+              className="text-xs text-amber-400 underline decoration-amber-400/40"
+            >
+              Seçilenleri listeden kaldır
+            </button>
+            <button
+              type="button"
               disabled={busy}
               onClick={() => void importSelected()}
               className="ml-auto rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-500"

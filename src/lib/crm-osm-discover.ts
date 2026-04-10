@@ -1,4 +1,4 @@
-import { normalizeBBoxGeography } from "@/lib/crm-geo";
+import { isPointInGeoBBox, normalizeBBoxGeography } from "@/lib/crm-geo";
 import { getNominatimApiUrl, getOverpassApiUrl } from "@/lib/env-sheets";
 
 export type BBox = {
@@ -165,9 +165,12 @@ out center tags;
   const out: DiscoveredLead[] = [];
 
   for (const el of elements) {
+    if (out.length >= maxResults) break;
     if (el.type !== "node" && el.type !== "way") continue;
     const pos = elementLatLon(el);
     if (!pos) continue;
+    // Way’ler bbox’a sadece kenardan değebilir; merkez nokta kutunun dışında kalabiliyor.
+    if (!isPointInGeoBBox(pos.lat, pos.lon, g)) continue;
     const tags = el.tags ?? {};
     const name =
       tags.name ??
@@ -196,8 +199,6 @@ out center tags;
       webVarMi: website.trim() ? "evet" : "hayır",
       kaynak: "osm_overpass",
     });
-
-    if (out.length >= maxResults) break;
   }
 
   return out;

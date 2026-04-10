@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type TemplateRow = {
   row: number;
@@ -49,6 +49,7 @@ export function CrmTemplatesPanel() {
     web: "https://ornek.com",
   });
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,18 +109,48 @@ export function CrmTemplatesPanel() {
     }
   }
 
-  async function onDelete(row: number) {
-    if (!confirm("Şablon silinsin mi?")) return;
+  const rowNums = useMemo(() => rows.map((r) => r.row), [rows]);
+  const allSelected =
+    rowNums.length > 0 && rowNums.every((n) => selectedRows.has(n));
+  const someSelected = rowNums.some((n) => selectedRows.has(n));
+  const headerSelectRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = headerSelectRef.current;
+    if (!el) return;
+    el.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (checked) for (const n of rowNums) next.add(n);
+      else for (const n of rowNums) next.delete(n);
+      return next;
+    });
+  }
+
+  async function onDeleteMany(sheetRows: number[]) {
+    if (sheetRows.length === 0) return;
+    const msg =
+      sheetRows.length === 1
+        ? "Şablon silinsin mi?"
+        : `${sheetRows.length} şablon silinsin mi?`;
+    if (!confirm(msg)) return;
     setBusy(true);
     try {
       const res = await fetch("/api/crm/templates", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ row }),
+        body: JSON.stringify({ rows: sheetRows }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? res.statusText);
-      if (editRow === row) {
+      setSelectedRows((prev) => {
+        const next = new Set(prev);
+        for (const r of sheetRows) next.delete(r);
+        return next;
+      });
+      if (editRow != null && sheetRows.includes(editRow)) {
         setEditRow(null);
         setForm({ ad: "", kanal: "mail", konu: "", govde: "" });
       }
@@ -129,6 +160,10 @@ export function CrmTemplatesPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onDelete(row: number) {
+    await onDeleteMany([row]);
   }
 
   function startEdit(r: TemplateRow) {
@@ -253,6 +288,16 @@ export function CrmTemplatesPanel() {
         >
           Yenile
         </button>
+        <button
+          type="button"
+          disabled={busy || selectedRows.size === 0}
+          onClick={() =>
+            void onDeleteMany([...selectedRows].sort((a, b) => a - b))
+          }
+          className="rounded-lg border border-red-500/50 px-3 py-2 text-sm text-red-200 disabled:opacity-40"
+        >
+          Seçilenleri sil ({selectedRows.size})
+        </button>
       </div>
 
       {adding ? (
@@ -346,6 +391,16 @@ export function CrmTemplatesPanel() {
         <table className="min-w-[600px] w-full text-left text-sm">
           <thead className="border-b border-zinc-800 bg-zinc-900 text-xs text-zinc-500">
             <tr>
+              <th className="w-10 px-2 py-2">
+                <input
+                  ref={headerSelectRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(e) => toggleSelectAll(e.target.checked)}
+                  disabled={loading || rows.length === 0}
+                  aria-label="Tüm şablonları seç"
+                />
+              </th>
               <th className="px-3 py-2">Ad</th>
               <th className="px-3 py-2">Kanal</th>
               <th className="px-3 py-2">İşlem</th>
@@ -354,13 +409,13 @@ export function CrmTemplatesPanel() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-zinc-500">
+                <td colSpan={4} className="px-3 py-4 text-zinc-500">
                   Yükleniyor…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-zinc-500">
+                <td colSpan={4} className="px-3 py-4 text-zinc-500">
                   Şablon yok. Google Sheets’te &quot;CRM_Sablonlar&quot; sekmesini
                   oluşturup başlık satırı ekleyin: ad, kanal, konu, govde.
                 </td>
@@ -368,6 +423,22 @@ export function CrmTemplatesPanel() {
             ) : (
               rows.map((r) => (
                 <tr key={r.row} className="border-b border-zinc-800">
+                  <td className="w-10 px-2 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.has(r.row)}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setSelectedRows((prev) => {
+                          const next = new Set(prev);
+                          if (on) next.add(r.row);
+                          else next.delete(r.row);
+                          return next;
+                        });
+                      }}
+                      aria-label={`Seç: ${r.ad}`}
+                    />
+                  </td>
                   <td className="px-3 py-2 font-medium text-zinc-200">{r.ad}</td>
                   <td className="px-3 py-2 text-zinc-500">{r.kanal}</td>
                   <td className="px-3 py-2">
