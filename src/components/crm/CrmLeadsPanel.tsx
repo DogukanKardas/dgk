@@ -6,9 +6,13 @@ import {
   nameMatchesExclude,
   parseExcludeKeywords,
 } from "@/lib/crm-discover-display";
+import { CrmScoreCriteriaFields } from "@/components/crm/CrmScoreCriteriaFields";
+import {
+  CRM_ILETISIM_DURUM_IDS,
+  CRM_ILETISIM_LABEL,
+} from "@/lib/crm-outreach";
 import {
   CRM_ASAMALAR,
-  CRM_SCORE_CRITERIA,
   computeLeadScore,
   parseCriteriaJson,
   stringifyCriteriaJson,
@@ -17,6 +21,58 @@ import {
 
 const FORBIDDEN_NAMES_LS_KEY = "dgk_crm_leads_forbidden_keywords";
 const FORBIDDEN_PURGE_DEBOUNCE_MS = 1200;
+
+function loadForbiddenKeywordsFromStorage(): string[] {
+  try {
+    const v = localStorage.getItem(FORBIDDEN_NAMES_LS_KEY);
+    if (v == null || v === "") return [];
+    try {
+      const parsed = JSON.parse(v) as unknown;
+      if (Array.isArray(parsed)) {
+        const out: string[] = [];
+        const seen = new Set<string>();
+        for (const x of parsed) {
+          const s = String(x).trim();
+          if (!s) continue;
+          const low = s.toLowerCase();
+          if (seen.has(low)) continue;
+          seen.add(low);
+          out.push(s);
+        }
+        return out;
+      }
+    } catch {
+      /* eski düz metin */
+    }
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const s of parseExcludeKeywords(v)) {
+      const low = s.toLowerCase();
+      if (seen.has(low)) continue;
+      seen.add(low);
+      out.push(s);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function saveForbiddenKeywordsToStorage(list: string[]) {
+  try {
+    localStorage.setItem(FORBIDDEN_NAMES_LS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
+function sameKeywordList(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 export type CrmLeadRowWithRow = {
   row: number;
@@ -33,6 +89,8 @@ export type CrmLeadRowWithRow = {
   kriterJson: string;
   olusturma: string;
   guncelleme: string;
+  eposta: string;
+  iletisimDurumu: string;
 };
 
 type LeadForm = Omit<CrmLeadRowWithRow, "row">;
@@ -61,6 +119,8 @@ function emptyForm(): LeadForm {
     kriterJson: "{}",
     olusturma: today,
     guncelleme: today,
+    eposta: "",
+    iletisimDurumu: "",
   };
 }
 
@@ -94,9 +154,15 @@ export function CrmLeadsPanel() {
   const [editCriteria, setEditCriteria] = useState<CriteriaState>({});
   const [busy, setBusy] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [forbiddenNamesRaw, setForbiddenNamesRaw] = useState("");
-  const [debouncedForbidden, setDebouncedForbidden] = useState("");
+  const [savedForbidden, setSavedForbidden] = useState<string[]>([]);
+  const [draftForbidden, setDraftForbidden] = useState<string[]>([]);
+  const [newForbiddenInput, setNewForbiddenInput] = useState("");
+  const [debouncedSavedForbidden, setDebouncedSavedForbidden] = useState<
+    string[]
+  >([]);
   const purgeBusyRef = useRef(false);
+
+  const forbiddenDirty = !sameKeywordList(draftForbidden, savedForbidden);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,29 +191,19 @@ export function CrmLeadsPanel() {
   }, [load]);
 
   useEffect(() => {
-    try {
-      const v = localStorage.getItem(FORBIDDEN_NAMES_LS_KEY);
-      if (v != null) setForbiddenNamesRaw(v);
-    } catch {
-      /* ignore */
-    }
+    const list = loadForbiddenKeywordsFromStorage();
+    setSavedForbidden(list);
+    setDraftForbidden(list);
+    setDebouncedSavedForbidden(list);
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(FORBIDDEN_NAMES_LS_KEY, forbiddenNamesRaw);
-    } catch {
-      /* ignore */
-    }
-  }, [forbiddenNamesRaw]);
-
-  useEffect(() => {
     const t = setTimeout(
-      () => setDebouncedForbidden(forbiddenNamesRaw),
+      () => setDebouncedSavedForbidden(savedForbidden),
       FORBIDDEN_PURGE_DEBOUNCE_MS
     );
     return () => clearTimeout(t);
-  }, [forbiddenNamesRaw]);
+  }, [savedForbidden]);
 
   const deleteLeadRows = useCallback(async (sheetRows: number[]) => {
     if (sheetRows.length === 0) return;
@@ -178,7 +234,7 @@ export function CrmLeadsPanel() {
   }, [load]);
 
   useEffect(() => {
-    const kw = parseExcludeKeywords(debouncedForbidden);
+    const kw = debouncedSavedForbidden;
     if (kw.length === 0 || loading || purgeBusyRef.current) return;
     const hits = rows.filter((r) => nameMatchesExclude(r.ad, kw));
     if (hits.length === 0) return;
@@ -200,7 +256,7 @@ export function CrmLeadsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [rows, debouncedForbidden, loading, deleteLeadRows]);
+  }, [rows, debouncedSavedForbidden, loading, deleteLeadRows]);
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -225,8 +281,8 @@ export function CrmLeadsPanel() {
           .includes(q)
       );
     }
-    return filterExcludedByName(list, forbiddenNamesRaw);
-  }, [rows, filter, filterAsama, forbiddenNamesRaw]);
+    return filterExcludedByName(list, savedForbidden.join(","));
+  }, [rows, filter, filterAsama, savedForbidden]);
 
   const displayRows = useMemo(() => {
     if (sortOrder !== "web_first") return filtered;
@@ -370,6 +426,38 @@ export function CrmLeadsPanel() {
     setEditCriteria(parseCriteriaJson(r.kriterJson));
   }
 
+  function addForbiddenTokensToDraft() {
+    const tokens = parseExcludeKeywords(newForbiddenInput);
+    if (tokens.length === 0) return;
+    setDraftForbidden((prev) => {
+      const seen = new Set(prev.map((s) => s.toLowerCase()));
+      const next = [...prev];
+      for (const t of tokens) {
+        const low = t.toLowerCase();
+        if (seen.has(low)) continue;
+        seen.add(low);
+        next.push(t);
+      }
+      return next;
+    });
+    setNewForbiddenInput("");
+  }
+
+  function saveForbiddenList() {
+    const next = [...draftForbidden];
+    setSavedForbidden(next);
+    saveForbiddenKeywordsToStorage(next);
+  }
+
+  function revertForbiddenDraft() {
+    setDraftForbidden([...savedForbidden]);
+    setNewForbiddenInput("");
+  }
+
+  function removeDraftKeyword(index: number) {
+    setDraftForbidden((prev) => prev.filter((_, i) => i !== index));
+  }
+
   return (
     <div className="space-y-4">
       {error ? (
@@ -449,27 +537,95 @@ export function CrmLeadsPanel() {
       </div>
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-        <label className="block text-xs font-medium text-zinc-400">
-          Yasaklı isim kelimeleri
-          <textarea
-            value={forbiddenNamesRaw}
-            onChange={(e) => setForbiddenNamesRaw(e.target.value)}
-            placeholder="Virgül veya satır ile: Starbucks, 7-Eleven, McDonald's…"
-            rows={2}
-            className="mt-1 w-full resize-y rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-medium text-zinc-400">
+            Yasaklı isim kelimeleri
+          </h3>
+          {forbiddenDirty ? (
+            <span className="rounded-md bg-amber-950/60 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+              Kaydedilmemiş değişiklik
+            </span>
+          ) : (
+            <span className="text-[10px] text-zinc-600">Kayıtlı</span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <input
+            value={newForbiddenInput}
+            onChange={(e) => setNewForbiddenInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addForbiddenTokensToDraft();
+              }
+            }}
+            placeholder="Örn. Esso veya Starbucks, 7-Eleven"
+            className="min-w-[12rem] flex-1 rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
           />
-        </label>
+          <button
+            type="button"
+            onClick={addForbiddenTokensToDraft}
+            className="rounded-lg border border-zinc-600 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
+          >
+            Listeye ekle
+          </button>
+          <button
+            type="button"
+            disabled={!forbiddenDirty}
+            onClick={saveForbiddenList}
+            className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-40"
+          >
+            Kaydet
+          </button>
+          <button
+            type="button"
+            disabled={!forbiddenDirty}
+            onClick={revertForbiddenDraft}
+            className="rounded-lg border border-zinc-600 px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-800 disabled:opacity-40"
+          >
+            Vazgeç
+          </button>
+        </div>
+        <div className="mt-3 min-h-[2.5rem] rounded-lg border border-zinc-800/80 bg-zinc-950/50 px-2 py-2">
+          {draftForbidden.length === 0 ? (
+            <p className="text-xs text-zinc-600">
+              Liste boş. Kelime yazıp &quot;Listeye ekle&quot; deyin, ardından{" "}
+              <span className="text-zinc-500">Kaydet</span> ile kalıcı kaydedin.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {draftForbidden.map((word, i) => (
+                <li
+                  key={`${word}-${i}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-zinc-600 bg-zinc-900 pl-2.5 pr-1 py-0.5 text-xs text-zinc-200"
+                >
+                  <span>{word}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeDraftKeyword(i)}
+                    className="rounded-full p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+                    aria-label={`${word} kaldır`}
+                    title="Listeden çıkar"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <p className="mt-2 text-[11px] leading-relaxed text-amber-200/85">
-          <span className="font-medium text-amber-100/90">Dikkat:</span> Ad
-          sütununda bu metinlerden biri geçen satırlar{" "}
-          <span className="text-zinc-200">hemen listede gösterilmez</span> hem
-          de yazmayı bitirdikten yaklaşık{" "}
-          {Math.round(FORBIDDEN_PURGE_DEBOUNCE_MS / 1000)} sn sonra{" "}
-          <span className="text-zinc-200">
-            Google Sheets’ten kalıcı silinir
-          </span>{" "}
-          (onay penceresi yok). Liste büyük/küçük harf duyarsız eşleşir. Bu kutu
-          tarayıcıda saklanır.
+          <span className="font-medium text-amber-100/90">Dikkat:</span>{" "}
+          <span className="text-zinc-300">Kaydet</span> sonrası bu kelimeler Ad
+          alanında geçen satırları üst tabloda göstermez; yaklaşık{" "}
+          {Math.round(FORBIDDEN_PURGE_DEBOUNCE_MS / 1000)} sn sonra aynı
+          eşleşmeler{" "}
+          <span className="text-zinc-200">Google Sheets’ten kalıcı silinir</span>{" "}
+          (onay yok). Eşleşme büyük/küçük harf duyarsızdır. Kayıtlı liste bu
+          tarayıcıda saklanır; taslaktaki × ile kelimeyi listeden çıkarıp tekrar{" "}
+          <span className="text-zinc-300">Kaydet</span> edebilirsiniz. Sheets
+          üzerinden zaten silinmiş satırlar bu listeden kelime kaldırılsa da geri
+          gelmez.
         </p>
       </div>
 
@@ -546,6 +702,38 @@ export function CrmLeadsPanel() {
                 <option value="hayır">Hayır</option>
               </select>
             </label>
+            <label className="text-xs text-zinc-400 sm:col-span-2">
+              E-posta
+              <input
+                type="email"
+                autoComplete="email"
+                value={newRow.eposta}
+                onChange={(e) =>
+                  setNewRow((p) => ({ ...p, eposta: e.target.value }))
+                }
+                className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
+                placeholder="ornek@firma.com"
+              />
+            </label>
+            <label className="text-xs text-zinc-400">
+              İletişim durumu
+              <select
+                value={newRow.iletisimDurumu}
+                onChange={(e) =>
+                  setNewRow((p) => ({
+                    ...p,
+                    iletisimDurumu: e.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm"
+              >
+                {CRM_ILETISIM_DURUM_IDS.map((id) => (
+                  <option key={id || "empty"} value={id}>
+                    {CRM_ILETISIM_LABEL[id] ?? id}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="text-xs text-zinc-400 sm:col-span-3">
               Notlar
               <textarea
@@ -558,39 +746,10 @@ export function CrmLeadsPanel() {
               />
             </label>
           </div>
-          <div className="rounded-lg border border-zinc-700 p-3">
-            <p className="mb-2 text-xs font-medium text-zinc-400">
-              Puan kriterleri (skor: {computeLeadScore(newCriteria)})
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {CRM_SCORE_CRITERIA.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex cursor-pointer items-start gap-2 text-sm text-zinc-300"
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(newCriteria[c.id])}
-                    onChange={(e) => {
-                      const next = {
-                        ...newCriteria,
-                        [c.id]: e.target.checked,
-                      };
-                      syncNewScore(next);
-                    }}
-                    className="mt-1"
-                  />
-                  <span>
-                    {c.label}{" "}
-                    <span className="text-zinc-500">
-                      ({c.points > 0 ? "+" : ""}
-                      {c.points})
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <CrmScoreCriteriaFields
+            criteria={newCriteria}
+            onChange={syncNewScore}
+          />
           <button
             type="button"
             disabled={busy || !newRow.ad.trim()}
@@ -603,7 +762,7 @@ export function CrmLeadsPanel() {
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="min-w-[900px] w-full border-collapse text-left">
+        <table className="min-w-[1100px] w-full border-collapse text-left">
           <thead>
             <tr>
               <th className={`${th} w-10`}>
@@ -620,7 +779,9 @@ export function CrmLeadsPanel() {
               <th className={th}>Ad</th>
               <th className={th}>Aşama</th>
               <th className={th}>Web</th>
+              <th className={th}>E-posta</th>
               <th className={th}>Kaynak</th>
+              <th className={th}>İletişim</th>
               <th className={th}>Adres</th>
               <th className={th}>İşlem</th>
             </tr>
@@ -628,13 +789,13 @@ export function CrmLeadsPanel() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className={`${td} text-zinc-500`}>
+                <td colSpan={10} className={`${td} text-zinc-500`}>
                   Yükleniyor…
                 </td>
               </tr>
             ) : displayRows.length === 0 ? (
               <tr>
-                <td colSpan={8} className={`${td} text-zinc-500`}>
+                <td colSpan={10} className={`${td} text-zinc-500`}>
                   Kayıt yok veya filtreye uymuyor.
                 </td>
               </tr>
@@ -680,7 +841,14 @@ export function CrmLeadsPanel() {
                       </a>
                     ) : null}
                   </td>
+                  <td className={`${td} max-w-[140px] truncate text-xs text-zinc-400`}>
+                    {r.eposta?.trim() || "—"}
+                  </td>
                   <td className={`${td} text-xs text-zinc-500`}>{r.kaynak}</td>
+                  <td className={`${td} max-w-[120px] text-xs text-zinc-400`}>
+                    {CRM_ILETISIM_LABEL[r.iletisimDurumu ?? ""] ??
+                      (r.iletisimDurumu?.trim() || "—")}
+                  </td>
                   <td className={`${td} max-w-[220px] text-xs`}>{r.adres}</td>
                   <td className={td}>
                     <div className="flex flex-wrap gap-1">
@@ -794,6 +962,38 @@ export function CrmLeadsPanel() {
                 </select>
               </label>
               <label className="text-xs text-zinc-400 sm:col-span-2">
+                E-posta
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={editForm.eposta}
+                  onChange={(e) =>
+                    setEditForm((p) => ({ ...p, eposta: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm"
+                  placeholder="ornek@firma.com"
+                />
+              </label>
+              <label className="text-xs text-zinc-400">
+                İletişim durumu
+                <select
+                  value={editForm.iletisimDurumu}
+                  onChange={(e) =>
+                    setEditForm((p) => ({
+                      ...p,
+                      iletisimDurumu: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm"
+                >
+                  {CRM_ILETISIM_DURUM_IDS.map((id) => (
+                    <option key={id || "empty"} value={id}>
+                      {CRM_ILETISIM_LABEL[id] ?? id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-zinc-400 sm:col-span-2">
                 Notlar
                 <textarea
                   value={editForm.notlar}
@@ -805,38 +1005,11 @@ export function CrmLeadsPanel() {
                 />
               </label>
             </div>
-            <div className="mt-4 rounded-lg border border-zinc-700 p-3">
-              <p className="mb-2 text-xs font-medium text-zinc-400">
-                Puan kriterleri (skor: {computeLeadScore(editCriteria)})
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {CRM_SCORE_CRITERIA.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex cursor-pointer items-start gap-2 text-sm text-zinc-300"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editCriteria[c.id])}
-                      onChange={(e) => {
-                        const next = {
-                          ...editCriteria,
-                          [c.id]: e.target.checked,
-                        };
-                        syncEditScore(next);
-                      }}
-                      className="mt-1"
-                    />
-                    <span>
-                      {c.label}{" "}
-                      <span className="text-zinc-500">
-                        ({c.points > 0 ? "+" : ""}
-                        {c.points})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+            <div className="mt-4">
+              <CrmScoreCriteriaFields
+                criteria={editCriteria}
+                onChange={syncEditScore}
+              />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button

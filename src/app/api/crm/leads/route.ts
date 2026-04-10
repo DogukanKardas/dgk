@@ -9,6 +9,7 @@ import {
   updateCrmLead,
 } from "@/lib/sheets/crm-sheet";
 import { formatSheetsApiError } from "@/lib/sheets/format-sheets-error";
+import { normalizeIletisimDurumu } from "@/lib/crm-outreach";
 import { computeLeadScore, parseCriteriaJson } from "@/lib/crm-scoring";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,8 @@ function parseLead(body: Record<string, unknown>): CrmLeadRow {
     kriterJson: s("kriterJson") || "{}",
     olusturma: s("olusturma") || today,
     guncelleme: s("guncelleme") || today,
+    eposta: s("eposta"),
+    iletisimDurumu: normalizeIletisimDurumu(s("iletisimDurumu")),
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CrmTemplateOutreach } from "@/components/crm/CrmTemplateOutreach";
 
 type TemplateRow = {
   row: number;
@@ -212,6 +213,8 @@ export function CrmTemplatesPanel() {
       {copyMsg ? (
         <p className="text-sm text-emerald-300/90">{copyMsg}</p>
       ) : null}
+
+      <CrmTemplateOutreach />
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
         <h3 className="mb-2 text-sm font-semibold text-zinc-200">

@@ -56,6 +56,8 @@ function discoverToLeadPayload(d: Discovered) {
     kriterJson: "{}",
     olusturma: t,
     guncelleme: t,
+    eposta: "",
+    iletisimDurumu: "",
   };
 }
 

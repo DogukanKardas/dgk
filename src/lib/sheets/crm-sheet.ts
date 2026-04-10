@@ -24,6 +24,10 @@ export type CrmLeadRow = {
   kriterJson: string;
   olusturma: string;
   guncelleme: string;
+  /** N sütunu — e-posta gönderimi */
+  eposta: string;
+  /** O sütunu — iletişim / teklif durumu (ör. mail_gonderildi) */
+  iletisimDurumu: string;
 };
 
 export type CrmLeadRowWithRow = CrmLeadRow & { row: number };
@@ -37,7 +41,7 @@ export type CrmTemplateRow = {
 
 export type CrmTemplateRowWithRow = CrmTemplateRow & { row: number };
 
-const LEADS_COL_LAST = "M";
+const LEADS_COL_LAST = "O";
 const TEMPLATE_COL_LAST = "D";
 
 /**
@@ -76,6 +80,8 @@ function asLeadRow(arr: unknown[]): CrmLeadRow {
     kriterJson: cell(10),
     olusturma: cell(11),
     guncelleme: cell(12),
+    eposta: cell(13),
+    iletisimDurumu: cell(14),
   };
 }
 
@@ -87,6 +93,7 @@ function leadToValues(r: CrmLeadRow): string[][] {
       ? sheetsForcePlainText(n)
       : n;
 
+  const ep = r.eposta.trim();
   return [
     [
       r.osmKey,
@@ -102,6 +109,10 @@ function leadToValues(r: CrmLeadRow): string[][] {
       r.kriterJson ? sheetsForcePlainText(r.kriterJson) : "",
       r.olusturma,
       r.guncelleme,
+      ep && /^[=+\-@]/.test(ep.replace(/^'+/, "").trimStart())
+        ? sheetsForcePlainText(ep)
+        : ep,
+      r.iletisimDurumu ?? "",
     ],
   ];
 }
